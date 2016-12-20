@@ -228,6 +228,8 @@
 			var/mob/M = thing
 			if(M && M.client && M.hud_used && length(M.client.parallax_layers))
 				M.hud_used.update_parallax()
+				// Aaaand update shadowcasting
+				M.hud_used.update_opacity()
 
 /mob/proc/update_parallax_teleport()	//used for arrivals shuttle
 	if(client && client.eye && hud_used && length(client.parallax_layers))

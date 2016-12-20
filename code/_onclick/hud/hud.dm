@@ -210,6 +210,7 @@
 	reorganize_alerts()
 	mymob.reload_fullscreen()
 	update_parallax_pref(screenmob)
+	create_opacity_image()
 
 /datum/hud/human/show_hud(version = 0,mob/viewmob)
 	..()
