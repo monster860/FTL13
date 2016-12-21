@@ -18,26 +18,42 @@
 	var/f = (y1*0.5)+(y3*0.5)
 	return matrix(a,b,c,e,d,f)
 
-var/list/triangle_images = list()
+// Datums are faster than lists
+/datum/triangle
+	var/x1
+	var/x2
+	var/x3
+	var/y1
+	var/y2
+	var/y3
 
-/proc/make_triangle_image(x1,y1,x2,y2,x3,y3, p = FLOAT_PLANE, l = FLOAT_LAYER)
-	var/strid = "[x1],[y1],[x2],[y2],[x3],[y3],[p],[l]"
-	var/image/I = triangle_images[strid]
-	if(I)
-		return I
-	I = new(icon = 'icons/effects/triangle.dmi', icon_state = "", layer = l)
-	I.transform = transform_triangle(x1,y1,x2,y2,x3,y3)
-	I.plane = p
-	I.color = "#000000"
-	triangle_images[strid] = I
-	return I
+/datum/triangle/New(x1,y1,x2,y2,x3,y3)
+	src.x1 = x1
+	src.x2 = x2
+	src.x3 = x3
+	src.y1 = y1
+	src.y2 = y2
+	src.y3 = y3
+
+//var/list/triangle_images = list()
+var/image/triangle_image
+var/image/shadowcast_enabler
+
+/proc/make_triangle_image(x1,y1,x2,y2,x3,y3, l = FLOAT_LAYER)
+	if(triangle_image == null)
+		triangle_image = new(icon = 'icons/effects/triangle.dmi', icon_state = "")
+	triangle_image.layer = l
+	triangle_image.transform = transform_triangle(x1,y1,x2,y2,x3,y3)
+	return triangle_image.appearance
 
 /proc/create_shadowcast_overlays(turf/locturf, atom/objatom)
 	var/vrange = 7
 	// Handles almost every edge case there is.
 	var/moveid = rand(0,65535)
 	var/list/new_overlays = list()
-
+	
+	var/timer = world.tick_usage
+	
 	for(var/turf/T in view(vrange))
 		T.shadowcast_inview = moveid
 		if(T.opacity)
@@ -50,6 +66,8 @@ var/list/triangle_images = list()
 					if(AM.opacity)
 						T.has_opaque = 1
 						break
+	
+	world << "View: [world.tick_usage-timer]"
 
 	var/list/vturfsordered = list()
 	for(var/I in 1 to (vrange*2))
@@ -58,6 +76,14 @@ var/list/triangle_images = list()
 			vturfsordered += locate(locturf.x - I + J, locturf.y + J, locturf.z)
 			vturfsordered += locate(locturf.x + J, locturf.y + I - J, locturf.z)
 			vturfsordered += locate(locturf.x - J, locturf.y - I + J, locturf.z)
+	
+	world << "Vturfs: [world.tick_usage-timer]"
+	
+	if(shadowcast_enabler == null)
+		shadowcast_enabler = image(icon = 'icons/effects/alphacolors.dmi', icon_state = "white", layer = 18)
+	
+	var/list/low_triangles = list()
+	
 	for(var/turf/T in vturfsordered)
 		if(T.shadowcast_inview != moveid || T == locturf || !T.has_opaque || T.shadowcast_considered == moveid)
 			continue
@@ -78,25 +104,47 @@ var/list/triangle_images = list()
 			width = 1
 			height = 1
 			if(zx)
+				var/turf/CT = get_step(T, 4)
+				while(CT && CT.has_opaque && abs(CT.x-locturf.x)<(vrange+2))
+					CT.shadowcast_considered = moveid
+					width++
+					CT = get_step(CT, 4)
+				CT = get_step(T, 8)
+				while(CT && CT.has_opaque && abs(CT.x-locturf.x)<(vrange+2))
+					CT.shadowcast_considered = moveid
+					width++
+					dx -= 32
+					CT = get_step(CT, 8)
 				var/cdir = dy>0?2:1
-				var/turf/CT = get_step(T,cdir)
+				CT = get_step(T,cdir)
 				if(CT && CT.has_opaque)
 					continue
 				cdir = dy>0?1:2
 				CT = T
 				while(CT && abs(CT.y - locturf.y))
 					CT.shadowcast_considered = moveid
-					CT = get_step(CT,cdir)
+					CT = get_step(CT,udir)
 			if(zy)
+				var/turf/CT = get_step(T, 1)
+				while(CT && CT.has_opaque && abs(CT.y-locturf.y)<(vrange+2))
+					CT.shadowcast_considered = moveid
+					height++
+					CT = get_step(CT, 1)
+				CT = get_step(T, 2)
+				while(CT && CT.has_opaque && abs(CT.y-locturf.y)<(vrange+2))
+					CT.shadowcast_considered = moveid
+					height++
+					dy -= 32
+					CT = get_step(CT, 2)
 				var/cdir = dx>0?8:4
-				var/turf/CT = get_step(T,cdir)
+				CT = get_step(T,cdir)
 				if(CT && CT.has_opaque)
 					continue
 				cdir = dx>0?4:8
 				CT = T
 				while(CT && abs(CT.x - locturf.x))
 					CT.shadowcast_considered = moveid
-					CT = get_step(CT,cdir)
+					CT = get_step(CT,rdir)
 		else
 			var/turf/CT = T
 			while(CT && CT.has_opaque && abs(CT.x-locturf.x)<(vrange+2))
@@ -111,9 +159,8 @@ var/list/triangle_images = list()
 				CT = get_step(CT, udir)
 
 		if(zx || zy)
-			var/image/enabler = image(icon = 'icons/effects/alphacolors.dmi', icon_state = "white", layer = 18)
-			enabler.transform = matrix(width,0,(width-1)*16*signx+dx,0,height,(height-1)*16*signy+dy)
-			new_overlays += enabler
+			shadowcast_enabler.transform = matrix(width,0,(width-1)*16*signx+dx,0,height,(height-1)*16*signy+dy)
+			new_overlays += shadowcast_enabler.appearance
 
 		var/top = dy-(signy*16)+(signy*32*height)
 		var/bottom = dy-(signy*16)
@@ -122,36 +169,22 @@ var/list/triangle_images = list()
 
 		var/fac = 32/L
 		if(zy)
-			var/turf/CT = get_step(T, 1)
-			if(CT && CT.has_opaque)
-				var/image/enabler = image(icon = 'icons/effects/alphacolors.dmi', icon_state = "white", layer = 18)
-				enabler.transform = matrix(1,0,dx,0,1,dy+32)
-				new_overlays += enabler
-			CT = get_step(T, 2)
-			if(CT && CT.has_opaque)
-				var/image/enabler = image(icon = 'icons/effects/alphacolors.dmi', icon_state = "white", layer = 18)
-				enabler.transform = matrix(1,0,dx,0,1,dy-32)
-				new_overlays += enabler
-			new_overlays += make_triangle_image(left, top, left, bottom, left*fac, bottom*fac, 0, 17)
-			new_overlays += make_triangle_image(left*fac,top*fac,left,top,left*fac,bottom*fac, 0, 17)
+			low_triangles += new /datum/triangle(left, top, left, bottom, left*fac, bottom*fac)
+			low_triangles += new /datum/triangle(left*fac,top*fac,left,top,left*fac,bottom*fac)
 		else if(zx)
-			var/turf/CT = get_step(T, 4)
-			if(CT && CT.has_opaque)
-				var/image/enabler = image(icon = 'icons/effects/alphacolors.dmi', icon_state = "white", layer = 18)
-				enabler.transform = matrix(1,0,dx+32,0,1,dy)
-				new_overlays += enabler
-			CT = get_step(T, 8)
-			if(CT && CT.has_opaque)
-				var/image/enabler = image(icon = 'icons/effects/alphacolors.dmi', icon_state = "white", layer = 18)
-				enabler.transform = matrix(1,0,dx-32,0,1,dy)
-				new_overlays += enabler
-			new_overlays += make_triangle_image(right, bottom, left, bottom, left*fac, bottom*fac, 0, 17)
-			new_overlays += make_triangle_image(left*fac,bottom*fac,right,bottom,right*fac,bottom*fac, 0, 17)
+			low_triangles += new /datum/triangle(right, bottom, left, bottom, left*fac, bottom*fac)
+			low_triangles += new /datum/triangle(left*fac,bottom*fac,right,bottom,right*fac,bottom*fac)
 		else
-			new_overlays += make_triangle_image(right,top,left,top,left*fac,top*fac, 0,19)
-			new_overlays += make_triangle_image(right,top,right,bottom,right*fac,bottom*fac, 0,19)
-			new_overlays += make_triangle_image(left*fac,top*fac,right,top,right*fac,bottom*fac,0,19)
+			new_overlays += make_triangle_image(right,top,left,top,left*fac,top*fac,19)
+			new_overlays += make_triangle_image(right,top,right,bottom,right*fac,bottom*fac,19)
+			new_overlays += make_triangle_image(left*fac,top*fac,right,top,right*fac,bottom*fac,19)
+	
+	for(var/datum/triangle/T in low_triangles)
+		new_overlays += make_triangle_image(T.x1,T.y1,T.x2,T.y2,T.x3,T.y3,17)
+	
 	objatom.overlays = new_overlays
+	world << "Everything else: [world.tick_usage-timer]"
+	world << "Overlay count: [objatom.overlays.len]"
 
 /client
 	var/image/opacity_image
