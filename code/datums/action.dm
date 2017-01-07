@@ -128,12 +128,13 @@
 		// If set, use the custom icon that we set instead
 		// of the item appearence
 		..(current_button)
-	else if(target)
+	else if(target && target != current_button.overlay_icon_state)
 		var/obj/item/I = target
 		var/old = I.layer
 		I.layer = FLOAT_LAYER //AAAH
 		current_button.overlays = list(I)
 		I.layer = old
+		current_button.overlay_icon_state = target
 	else
 		current_button.cut_overlays()
 
