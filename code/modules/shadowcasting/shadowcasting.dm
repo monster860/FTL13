@@ -1,4 +1,4 @@
-/turf
+/turf // A few vars shadowcasting needs
 	var/shadowcast_inview
 	var/shadowcast_considered
 	var/has_opaque = 1
@@ -36,12 +36,12 @@
 	src.y3 = y3
 
 //var/list/triangle_images = list()
-var/image/triangle_image
 var/image/shadowcast_enabler
 
 /proc/make_triangle_image(x1,y1,x2,y2,x3,y3, l = FLOAT_LAYER)
-	if(triangle_image == null)
-		triangle_image = new(icon = 'icons/effects/triangle.dmi', icon_state = "")
+	var/image/triangle_image = new /mutable_appearance()
+	triangle_image.icon = 'icons/effects/triangle.dmi'
+	triangle_image.icon_state = ""
 	triangle_image.layer = l
 	triangle_image.transform = transform_triangle(x1,y1,x2,y2,x3,y3)
 	return triangle_image.appearance
@@ -51,9 +51,9 @@ var/image/shadowcast_enabler
 	// Handles almost every edge case there is.
 	var/moveid = rand(0,65535)
 	var/list/new_overlays = list()
-	
+
 	var/timer = world.tick_usage
-	
+
 	for(var/turf/T in view(vrange))
 		T.shadowcast_inview = moveid
 		if(T.opacity)
@@ -66,8 +66,8 @@ var/image/shadowcast_enabler
 					if(AM.opacity)
 						T.has_opaque = 1
 						break
-	
-	world << "View: [world.tick_usage-timer]"
+
+	to_chat(world, "View: [world.tick_usage-timer]")
 
 	var/list/vturfsordered = list()
 	for(var/I in 1 to (vrange*2))
@@ -76,14 +76,14 @@ var/image/shadowcast_enabler
 			vturfsordered += locate(locturf.x - I + J, locturf.y + J, locturf.z)
 			vturfsordered += locate(locturf.x + J, locturf.y + I - J, locturf.z)
 			vturfsordered += locate(locturf.x - J, locturf.y - I + J, locturf.z)
-	
-	world << "Vturfs: [world.tick_usage-timer]"
-	
+
+	to_chat(world, "Vturfs: [world.tick_usage-timer]")
+
 	if(shadowcast_enabler == null)
 		shadowcast_enabler = image(icon = 'icons/effects/alphacolors.dmi', icon_state = "white", layer = 18)
-	
+
 	var/list/low_triangles = list()
-	
+
 	for(var/turf/T in vturfsordered)
 		if(T.shadowcast_inview != moveid || T == locturf || !T.has_opaque || T.shadowcast_considered == moveid)
 			continue
@@ -178,13 +178,13 @@ var/image/shadowcast_enabler
 			new_overlays += make_triangle_image(right,top,left,top,left*fac,top*fac,19)
 			new_overlays += make_triangle_image(right,top,right,bottom,right*fac,bottom*fac,19)
 			new_overlays += make_triangle_image(left*fac,top*fac,right,top,right*fac,bottom*fac,19)
-	
+
 	for(var/datum/triangle/T in low_triangles)
 		new_overlays += make_triangle_image(T.x1,T.y1,T.x2,T.y2,T.x3,T.y3,17)
-	
+
 	objatom.overlays = new_overlays
-	world << "Everything else: [world.tick_usage-timer]"
-	world << "Overlay count: [objatom.overlays.len]"
+	to_chat(world, "Everything else: [world.tick_usage-timer]")
+	to_chat(world, "Overlay count: [objatom.overlays.len]")
 
 /client
 	var/image/opacity_image
@@ -199,7 +199,7 @@ var/image/shadowcast_enabler
 		C.opacity_obj = new
 		C.opacity_obj.animate_movement = NO_STEPS // No gliding
 		C.opacity_obj.verbs.Cut()
-		
+
 	C.opacity_image.loc = C.opacity_obj
 	C.opacity_image.overlays.Cut()
 	C.images |= C.opacity_image
